@@ -2,12 +2,17 @@ import json
 import plotly.graph_objects as go
 from dash import Dash, dcc, html
 
-# Load figure from JSON
+# Load and patch JSON
 with open("fig_with_frames_for_dash.json") as f:
     fig_dict = json.load(f)
+
+# Remove problematic template (like heatmapgl)
+if "template" in fig_dict.get("layout", {}):
+    fig_dict["layout"].pop("template")
+
 fig = go.Figure(fig_dict)
 
-# Initialize Dash app
+# Dash app
 app = Dash(__name__)
 app.title = "IMF Uncertainty Index"
 
