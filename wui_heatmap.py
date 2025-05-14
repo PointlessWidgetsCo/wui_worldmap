@@ -7,22 +7,18 @@ import plotly.graph_objects as go
 # 1. Load & reshape your data
 # ──────────────────────────────────────────────────────────────────────────────
 df = pd.read_excel('WUI M Dataset Apr 2025.xlsx', sheet_name='T1')
-df_long = df.melt(
-    id_vars=['date'],
-    var_name='Country',
-    value_name='Uncertainty'
-)
+df_long = df.melt(id_vars=['date'], var_name='Country', value_name='Uncertainty')
 df_long['Month'] = df_long['date'].dt.strftime('%Y-%m')
 months = sorted(df_long['Month'].unique())
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 2. Determine color‐scale bounds
+# 2. Define your color scale bounds
 # ──────────────────────────────────────────────────────────────────────────────
 min_val = df_long['Uncertainty'].min()
-max_val = 1.3  # cap to force red at 1.3
+max_val = 1.3  # cap so that top values go red
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 3. Build animated choropleth with Plotly Express
+# 3. Build the animated choropleth with Plotly Express
 # ──────────────────────────────────────────────────────────────────────────────
 fig = px.choropleth(
     df_long,
@@ -37,13 +33,13 @@ fig = px.choropleth(
 )
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 4. Style the map & colorbar
+# 4. Tweak map & colorbar styling
 # ──────────────────────────────────────────────────────────────────────────────
 fig.update_geos(showcoastlines=True, coastlinecolor='black')
 fig.update_coloraxes(colorbar_title='Uncertainty')
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 5. Override animation timings (2 s hold, 1 s transition)
+# 5. Override Play-button & slider timing
 # ──────────────────────────────────────────────────────────────────────────────
 fig.layout.updatemenus[0].buttons[0].args[1].update(
     frame=dict(duration=2000, redraw=True),
@@ -54,62 +50,42 @@ fig.layout.sliders[0].update(
 )
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 6. Add big month label in each frame
+# 6. Inject only the month label into each frame (no source)
 # ──────────────────────────────────────────────────────────────────────────────
 for frame in fig.frames:
-    dt = pd.to_datetime(frame.name)
-    frame.layout = {
-        'annotations': [dict(
-            text=dt.strftime('%B %Y'),
-            x=0.5, y=0.15,
-            xref='paper', yref='paper',
-            xanchor='center', showarrow=False,
-            font=dict(size=36)
-        )]
-    }
+    date_dt = pd.to_datetime(frame.name)
+    month_annot = dict(
+        text=date_dt.strftime('%B %Y'),
+        x=0.5, y=0.15, xref='paper', yref='paper',
+        xanchor='center', showarrow=False,
+        font=dict(size=36, color='black')
+    )
+    frame.layout = {'annotations': [month_annot]}
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 7. Source attribution
-# ──────────────────────────────────────────────────────────────────────────────
-fig.add_annotation(
-    text="Source: https://worlduncertaintyindex.com/",
-    x=0.5, y=-0.2,
-    xref='paper', yref='paper',
-    showarrow=False
-)
-
-# ──────────────────────────────────────────────────────────────────────────────
-# 8. Force the initial frame to the last month (rebuild approach)
+# 7. Force initial view → last frame using the “rebuild” trick
 # ──────────────────────────────────────────────────────────────────────────────
 last_idx = len(fig.frames) - 1
-fig.layout.sliders[0].active = last_idx
+fig.layout.sliders[0].active = last_idx  # moves slider to final month
+
+initial_layout = fig.layout
+initial_layout.annotations = fig.frames[last_idx].layout.annotations
 
 fig = go.Figure(
     data=fig.frames[last_idx].data,
     frames=fig.frames,
-    layout=fig.layout
+    layout=initial_layout
 )
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 9. Add static label for the last frame
-# ──────────────────────────────────────────────────────────────────────────────
-fig.add_annotation(
-    text=pd.to_datetime(months[-1]).strftime('%B %Y'),
-    x=0.5, y=0.15,
-    xref='paper', yref='paper',
-    xanchor='center', showarrow=False,
-    font=dict(size=36)
-)
-
-# ──────────────────────────────────────────────────────────────────────────────
-# 10. Export to HTML without the initial burst
+# 8. Export to HTML without the sudden “burst”
 # ──────────────────────────────────────────────────────────────────────────────
 fig.write_html(
     "wui_animation.html",
-    auto_play=False  # prevents auto‐play on load
+    auto_play=False  # disables autoplay on load
 )
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 11. (Optional) Launch in browser
+# 9. (Optional) preview in the browser
 # ──────────────────────────────────────────────────────────────────────────────
 fig.show()
