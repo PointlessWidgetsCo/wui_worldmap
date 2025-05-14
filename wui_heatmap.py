@@ -1,105 +1,115 @@
+#!/usr/bin/env python3
 import pandas as pd
+import plotly.express as px
 import plotly.graph_objects as go
 
-# Sample data frame `df` with columns: "country_code", "value", "date"
-# Replace this with your actual data
+# ──────────────────────────────────────────────────────────────────────────────
+# 1. Load & reshape your data
+# ──────────────────────────────────────────────────────────────────────────────
 df = pd.read_excel('WUI M Dataset Apr 2025.xlsx', sheet_name='T1')
-
-# Prepare data for animation
-df_long = df.melt(id_vars=['date'], var_name='Country', value_name='Uncertainty')
+df_long = df.melt(
+    id_vars=['date'],
+    var_name='Country',
+    value_name='Uncertainty'
+)
 df_long['Month'] = df_long['date'].dt.strftime('%Y-%m')
+months = sorted(df_long['Month'].unique())
 
-# Set the maximum value of the color scale to 1.3 (as per your request)
-min_value = df_long['Uncertainty'].min()
-max_value = 1.3  # Explicitly setting the max value to 1.3 to ensure it's in red
+# ──────────────────────────────────────────────────────────────────────────────
+# 2. Determine color‐scale bounds
+# ──────────────────────────────────────────────────────────────────────────────
+min_val = df_long['Uncertainty'].min()
+max_val = 1.3  # cap to force red at 1.3
 
-# Create traces for the map
-trace = go.Choropleth(
-    locations=df_long['Country'],
-    z=df_long['Uncertainty'],
-    text=df_long['Country'],
-    hoverinfo="location+z+text",
-    colorscale="RdYlBu_r",
-    colorbar=dict(title="Uncertainty"),
-    zmin=min_value,
-    zmax=max_value
+# ──────────────────────────────────────────────────────────────────────────────
+# 3. Build animated choropleth with Plotly Express
+# ──────────────────────────────────────────────────────────────────────────────
+fig = px.choropleth(
+    df_long,
+    locations='Country',
+    color='Uncertainty',
+    hover_name='Country',
+    animation_frame='Month',
+    projection='natural earth',
+    color_continuous_scale='RdYlBu_r',
+    range_color=(min_val, max_val),
+    title='IMF World Uncertainty Index by Country'
 )
 
-# Create frames for the animation
-frames = [go.Frame(
-    data=[go.Choropleth(
-        locations=df_long[df_long['Month'] == month]['Country'],
-        z=df_long[df_long['Month'] == month]['Uncertainty'],
-        text=df_long[df_long['Month'] == month]['Country'],
-        hoverinfo="location+z+text",
-        colorscale="RdYlBu_r",
-        colorbar=dict(title="Uncertainty"),
-        zmin=min_value,
-        zmax=max_value
-    )],
-    name=month
-) for month in df_long['Month'].unique()]
+# ──────────────────────────────────────────────────────────────────────────────
+# 4. Style the map & colorbar
+# ──────────────────────────────────────────────────────────────────────────────
+fig.update_geos(showcoastlines=True, coastlinecolor='black')
+fig.update_coloraxes(colorbar_title='Uncertainty')
 
-# Define layout and animation settings
-layout = go.Layout(
-    title="IMF World Uncertainty Index by Country",
-    geo=dict(showcoastlines=True, coastlinecolor="Black", projection_type="natural earth"),
-    updatemenus=[{
-        'buttons': [
-            {
-                'args': [None, {'frame': {'duration': 2000, 'redraw': True}, 'fromcurrent': True}],  # Frame duration set to 2000ms
-                'label': 'Play',
-                'method': 'animate',
-            },
-        ],
-        'direction': 'left',
-        'pad': {'r': 10, 't': 87},
-        'showactive': False,
-        'type': 'buttons',
-        'x': 0.1,
-        'xanchor': 'right',
-        'y': 0,
-        'yanchor': 'bottom',
-    }],
-    sliders=[{
-        'steps': [{
-            'args': [
-                [str(month)],
-                {'frame': {'duration': 2000, 'redraw': True},  # 2000ms per frame
-                 'mode': 'immediate',
-                 'transition': {'duration': 2000, 'easing': 'ease-in-out'}},  # Smooth transition between frames
-            ],
-            'label': f'{month}',
-            'method': 'animate',
-        } for month in df_long['Month'].unique()]
-    }],
-    annotations=[dict(
-        text="Source: https://worlduncertaintyindex.com/",  # Source URL text
-        x=0.5, y=-0.6,  # Position below the slider (adjust y to move it further down)
-        xref="paper", yref="paper",  # Reference to paper coordinates
-        font=dict(size=14, color="black"),
-        showarrow=False
-    )]
+# ──────────────────────────────────────────────────────────────────────────────
+# 5. Override animation timings (2 s hold, 1 s transition)
+# ──────────────────────────────────────────────────────────────────────────────
+fig.layout.updatemenus[0].buttons[0].args[1].update(
+    frame=dict(duration=2000, redraw=True),
+    transition=dict(duration=1000, easing='cubic-in-out')
+)
+fig.layout.sliders[0].update(
+    transition=dict(duration=1000, easing='cubic-in-out')
 )
 
-# Create the figure with data, layout, and frames
-fig = go.Figure(
-    data=[trace],
-    layout=layout,
-    frames=frames
-)
-
-# Add dynamic month labels to each frame
+# ──────────────────────────────────────────────────────────────────────────────
+# 6. Add big month label in each frame
+# ──────────────────────────────────────────────────────────────────────────────
 for frame in fig.frames:
-    date_val = pd.to_datetime(frame.name)  # Assuming frame.name is date-like
-    label = date_val.strftime("%B %Y")
-    frame.layout.annotations = [dict(
-        text=label, x=0.5, y=0.18, xref="paper", yref="paper",  # Position in the lower half (y=0.1)
-        xanchor="center", font=dict(size=36, color="black"), showarrow=False
-    )]
+    dt = pd.to_datetime(frame.name)
+    frame.layout = {
+        'annotations': [dict(
+            text=dt.strftime('%B %Y'),
+            x=0.5, y=0.15,
+            xref='paper', yref='paper',
+            xanchor='center', showarrow=False,
+            font=dict(size=36)
+        )]
+    }
 
-# Save the animation as HTML (for viewing in the browser with transitions)
-fig.write_html("IMF_Uncertainty_Index_Animation_Interactive_with_Consistent_Colors_and_Source.html")
+# ──────────────────────────────────────────────────────────────────────────────
+# 7. Source attribution
+# ──────────────────────────────────────────────────────────────────────────────
+fig.add_annotation(
+    text="Source: https://worlduncertaintyindex.com/",
+    x=0.5, y=-0.2,
+    xref='paper', yref='paper',
+    showarrow=False
+)
 
-# Show the figure interactively (this will make the transition work with smooth transitions when opened in the browser)
+# ──────────────────────────────────────────────────────────────────────────────
+# 8. Force the initial frame to the last month (rebuild approach)
+# ──────────────────────────────────────────────────────────────────────────────
+last_idx = len(fig.frames) - 1
+fig.layout.sliders[0].active = last_idx
+
+fig = go.Figure(
+    data=fig.frames[last_idx].data,
+    frames=fig.frames,
+    layout=fig.layout
+)
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 9. Add static label for the last frame
+# ──────────────────────────────────────────────────────────────────────────────
+fig.add_annotation(
+    text=pd.to_datetime(months[-1]).strftime('%B %Y'),
+    x=0.5, y=0.15,
+    xref='paper', yref='paper',
+    xanchor='center', showarrow=False,
+    font=dict(size=36)
+)
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 10. Export to HTML without the initial burst
+# ──────────────────────────────────────────────────────────────────────────────
+fig.write_html(
+    "wui_animation.html",
+    auto_play=False  # prevents auto‐play on load
+)
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 11. (Optional) Launch in browser
+# ──────────────────────────────────────────────────────────────────────────────
 fig.show()
