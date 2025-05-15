@@ -47,7 +47,7 @@ python wui_heatmap.py
 
 This will generate:
 
-* `wui_animation_px.html` — an interactive, self‐contained HTML file.
+* `wui_animation.html` — an interactive, self‐contained HTML file.
 
 Open it in any modern browser to view:
 
@@ -101,7 +101,7 @@ Open it in any modern browser to view:
 You can simply iframe the `wui_animation_px.html` file:
 
 ```html
-<iframe src="/path/to/wui_animation_px.html" width="100%" height="600"></iframe>
+<iframe src="/path/to/wui_animation.html" width="100%" height="600"></iframe>
 ```
 
 Readers will get a fully interactive experience without additional setup.
